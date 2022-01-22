@@ -21,10 +21,13 @@
 #define EFFENERGY1 1.85
 #define EFFENERGY2 15.
 
+#define DEBUG
+
 using namespace::std;
 
 void ReadXRayData(map<string, map<double, double>> &m_p);
-void PreAnaXRayData(map<string, map<double, double>> &m_p);
+void PreAnaXRayData_1(map<string, map<double, double>> &m_p);
+void PreAnaXRayData_2(map<string, map<double, double>> &m_p);
 void ReadEffData(double par1[10], double par2[10], double par3[10]);
 void ReadMcaData(char filename[1024], double par[2], vector<double> &v_x, vector<double> &v_y);
 void GetPeakInfo(double par[2], vector<double> &v_x, vector<double> &v_y, map<double, double> &m_p);
@@ -41,10 +44,10 @@ void analysis()
 
   map<string, map<double, double>> map_xray_data;
   ReadXRayData(map_xray_data);
-  PreAnaXRayData(map_xray_data);
+  PreAnaXRayData_1(map_xray_data);
   map<string, map<double, double>>::iterator it1;
   map<double, double>::iterator it2;
-  /*
+
   for(it1=map_xray_data.begin();it1!=map_xray_data.end();++it1){
     cout << it1->first << " => \n";
     for(it2=it1->second.begin();it2!=it1->second.end();++it2){
@@ -52,11 +55,10 @@ void analysis()
     }
     cout << "\n";
   }
-  */
 
   //need to choose here
   //1
-  vector<string> v_element = {"20Ca", "26Fe", "82Pb", "25Mn", "24Cr", "29Cu", "30Zn", "22Ti"};
+  //vector<string> v_element = {"20Ca", "26Fe", "82Pb", "25Mn", "24Cr", "29Cu", "30Zn", "22Ti"};
   //2
   /*
   v_element.clear();
@@ -65,6 +67,7 @@ void analysis()
   }
   */
 
+  /*
   double par1_eff[10];
   double par2_eff[10];
   double par3_eff[10];
@@ -73,7 +76,7 @@ void analysis()
   vector<double> v_x;
   vector<double> v_y;
   char file_name[1024];
-  sprintf(file_name, "./spectrum/CaTi-10KV-0.02mA.mca");
+  sprintf(file_name, "../spectrum/CaTi-10KV-0.02mA.mca");
   ReadMcaData(file_name, par_cali, v_x, v_y);
   map<double, double> m_peak;
   map<double, double> m_peak_dector_eff;
@@ -100,13 +103,14 @@ void analysis()
   CheckElementShow(map_xray_data, m_element_show, m_element_show_mca_toi_associate, m_element_show_check);
   map<string, double> m_percent_result;
   GetElementPercent(map_xray_data, m_element_show_check, m_percent_result);
+  */
 }
 
 //////
 void ReadXRayData(map<string, map<double, double>> &m_p)
 {
   //m_p: toi x-ray info
-  ifstream file_in("X-Ray.dat");
+  ifstream file_in("../X-Ray.dat");
   if(!file_in){
     std::cout << "can not open X-Ray.dat file" << std::endl;
     return;
@@ -133,7 +137,39 @@ void ReadXRayData(map<string, map<double, double>> &m_p)
 }
 
 //
-void PreAnaXRayData(map<string, map<double, double>> &m_p)
+//only keep the strongest peak in the x-ray data
+//m_p: toi x-ray info
+void PreAnaXRayData_1(map<string, map<double, double>> &m_p)
+{
+  map<string, map<double, double>>::iterator it;
+
+  map<double, double> m_pp;//x-ray intensity & x-ray energy
+  for(it=m_p.begin();it!=m_p.end();++it){
+    m_pp.clear();
+    int size = it->second.size();
+    if(size > 1){
+      for(map<double, double>::iterator itt=it->second.begin();itt!=it->second.end();++itt){
+        m_pp.insert(pair<double, double>(itt->second, itt->first));
+      }
+#ifdef DEBUG
+      for(map<double, double>::iterator itt=m_pp.begin();itt!=m_pp.end();++itt){
+        cout << it->first << " ==> " << itt->first << " ==> " << itt->second << endl;
+      }
+#endif
+      (it->second).clear();
+      map<double, double>::reverse_iterator rit;
+      rit=m_pp.rbegin();
+      (it->second).insert(pair<double, double>(rit->second, rit->first));
+
+    }else{
+      continue;
+    }
+  }
+}
+
+//
+//merge peaks energy difference smaller than 0.3keV in the x-ray data
+void PreAnaXRayData_2(map<string, map<double, double>> &m_p)
 {
   //m_p: toi x-ray info
   map<string, map<double, double>>::iterator it;
