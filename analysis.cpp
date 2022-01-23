@@ -33,9 +33,8 @@ void ReadMcaData(char filename[1024], double par[2], vector<double> &v_x, vector
 void GetPeakInfo(double par[2], vector<double> &v_x, vector<double> &v_y, map<double, double> &m_p);
 void CaliDetectorEff(double par1[10], double par2[10], double par3[10], map<double, double> &m_p, map<double, double> &m_pp);
 void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp);
-void GetElementShow(vector<string> &v_e, map<string, map<double, double>> &m_p, map<double, double> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q);
-void CheckElementShow(map<string, map<double, double>> &m_p, map<string, map<double, double>> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q);
-void GetElementPercent(map<string, map<double, double>> &m_p, map<string, map<double, double>> &m_pp, map<string, double> &m_q);
+void GetElementShow(vector<string> &v_e, map<string, map<double, double>> &m_p, map<double, double> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q, map<string, map<double, double>> &m_r);
+void GetElementPercent(map<string, map<double, double>> &m_p, map<string, map<double, double>> &m_pp, map<string, map<double, double>> m_ppp, map<string, double> &m_q);
 
 //
 void analysis()
@@ -48,26 +47,13 @@ void analysis()
   map<string, map<double, double>>::iterator it1;
   map<double, double>::iterator it2;
 
-  for(it1=map_xray_data.begin();it1!=map_xray_data.end();++it1){
-    cout << it1->first << " => \n";
-    for(it2=it1->second.begin();it2!=it1->second.end();++it2){
-      cout << it2->first << "  " << it2->second << "  "; 
-    }
-    cout << "\n";
-  }
-
   //need to choose here
   //1
-  //vector<string> v_element = {"20Ca", "26Fe", "82Pb", "25Mn", "24Cr", "29Cu", "30Zn", "22Ti"};
+  vector<string> v_element = {"20Ca", "26Fe", "82Pb", "25Mn", "24Cr", "29Cu", "30Zn", "22Ti"};
   //2
-  /*
-  v_element.clear();
-  for(it1=map_xray_data.begin();it1!=map_xray_data.end();++it1){
-    v_element.push_back(it1->first);
-  }
-  */
+  //v_element.clear();
+  //for(it1=map_xray_data.begin();it1!=map_xray_data.end();++it1) v_element.push_back(it1->first);
 
-  /*
   double par1_eff[10];
   double par2_eff[10];
   double par3_eff[10];
@@ -85,6 +71,7 @@ void analysis()
   CaliDetectorEff(par1_eff, par2_eff, par3_eff, m_peak, m_peak_dector_eff);
   CaliAttenEff(m_peak_dector_eff, m_peak_dector_eff_atten_eff);
 
+#ifdef DEBUG
   for(it2=m_peak.begin();it2!=m_peak.end();++it2){
     cout << ",,, raw " << it2->first << " ==>  " << it2->second << endl; 
   }
@@ -94,19 +81,34 @@ void analysis()
   for(it2=m_peak_dector_eff_atten_eff.begin();it2!=m_peak_dector_eff_atten_eff.end();++it2){
     cout << ",,, after detector&atten eff " << it2->first << " ==>  " << it2->second << endl; 
   }
-
+#endif
+  
   map<string, map<double, double>> m_element_show;
   map<string, map<double, double>> m_element_show_mca_toi_associate;
-  GetElementShow(v_element, map_xray_data, m_peak_dector_eff_atten_eff, m_element_show, m_element_show_mca_toi_associate);
+  map<string, map<double, double>> m_element_show_toi_mca_associate;
+  GetElementShow(v_element, map_xray_data, m_peak_dector_eff_atten_eff, m_element_show, m_element_show_mca_toi_associate, m_element_show_toi_mca_associate);
+#ifdef DEBUG
+  for(it1=m_element_show.begin();it1!=m_element_show.end();++it1){
+    cout << "!!!... " << it1->first << " ";
+    for(it2=it1->second.begin();it2!=it1->second.end();++it2){
+      cout << it2->first << " " << it2->second;
+    }
+    cout << endl;
+  }
+#endif
 
-  map<string, map<double, double>> m_element_show_check;
-  CheckElementShow(map_xray_data, m_element_show, m_element_show_mca_toi_associate, m_element_show_check);
   map<string, double> m_percent_result;
-  GetElementPercent(map_xray_data, m_element_show_check, m_percent_result);
-  */
+  GetElementPercent(map_xray_data, m_element_show, m_element_show_mca_toi_associate, m_percent_result);
+
+#ifdef DEBUG
+  for(map<string, double>::iterator ittt=m_percent_result.begin();ittt!=m_percent_result.end();++ittt){
+    cout << "!!!... " << ittt->first << " " << ittt->second*100 << "%" << endl;
+  }
+#endif
 }
 
-//////
+
+/////
 void ReadXRayData(map<string, map<double, double>> &m_p)
 {
   //m_p: toi x-ray info
@@ -126,7 +128,6 @@ void ReadXRayData(map<string, map<double, double>> &m_p)
     iss >> element;
     m_p.insert(pair<string, map<double, double>>(element, map<double,double>()));
     while(iss >> energy >> intensity){
-      //cout << energy << " " << intensity << endl;
       m_p[element].insert(pair<double, double>(energy, intensity));
     }
   }
@@ -151,11 +152,6 @@ void PreAnaXRayData_1(map<string, map<double, double>> &m_p)
       for(map<double, double>::iterator itt=it->second.begin();itt!=it->second.end();++itt){
         m_pp.insert(pair<double, double>(itt->second, itt->first));
       }
-#ifdef DEBUG
-      for(map<double, double>::iterator itt=m_pp.begin();itt!=m_pp.end();++itt){
-        cout << it->first << " ==> " << itt->first << " ==> " << itt->second << endl;
-      }
-#endif
       (it->second).clear();
       map<double, double>::reverse_iterator rit;
       rit=m_pp.rbegin();
@@ -235,7 +231,7 @@ void ReadEffData(double par1[10], double par2[10], double par3[10])
   //read effdata
   double par_temp1, par_temp2, par_temp3;
   ifstream ifs_eff;
-  ifs_eff.open("eff.par");
+  ifs_eff.open("../eff.par");
   if(!ifs_eff){
     cout << "cannot open eff.par file !" << endl;
     return;
@@ -486,7 +482,7 @@ void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp)
   //m_p: peak info from mca spectrum after detector efficiency calibration
   //m_pp: peak info from mca spectrum after detector&atten efficiency calibration
   ifstream fi;
-  fi.open("gamma_attenuation_data.txt");
+  fi.open("../gamma_attenuation_data.txt");
   if(!fi){
     cout << "cannot open gamma_attenuation_data.txt file !" << endl;
     return;
@@ -517,155 +513,173 @@ void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp)
 }
 
 //
-void GetElementShow(vector<string> &v_e, map<string, map<double, double>> &m_p, map<double, double> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q)
+void GetElementShow(vector<string> &v_e, map<string, map<double, double>> &m_p, map<double, double> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q, map<string, map<double, double>> &m_r)
 {
   //v_e: the elements wants to caliculate
   //m_p: x-ray data from toi
   //m_pp: peak info from mca spectrum after detector&atten efficiency calibration
   //m_ppp: elements show in the mca spectrum, like <20Ca, <peak energy, peak area>, peak energy&area both from mca spectrum
-  //m_q: associate peak energy from toi & peak from mca spectrum
-  map<double, double> mm_p(m_pp);
-
+  //m_q: associate peak energy from peak from mca spectrum & toi
+  //m_r: associate peak energy from toi & peak from mca spectrum
   map<string, map<double, double>>::iterator itt1;
   map<double, double>::iterator itt2;
 
   int size = v_e.size();
   for(int i=0;i<size;i++){
     itt1 = m_p.find(v_e[i]);
+#ifdef DEBUG
     cout << "// analysis " << v_e[i] << " element." << endl;
+#endif
     m_ppp.insert(pair<string, map<double, double>>(v_e[i], map<double, double>()));
     m_q.insert(pair<string, map<double, double>>(v_e[i], map<double, double>()));
+    m_r.insert(pair<string, map<double, double>>(v_e[i], map<double, double>()));
     
-    for(map<double, double>::iterator ittt=mm_p.begin();ittt!=mm_p.end();++ittt){
+#ifdef DEBUG
+    for(map<double, double>::iterator ittt=m_pp.begin();ittt!=m_pp.end();++ittt){
       cout << "//// " << ittt->first << endl;
     }
-
+#endif
     for(itt2=itt1->second.begin();itt2!=itt1->second.end();++itt2){
+#ifdef DEBUG
       cout << "energy /// " << itt2->first << endl;
-      map<double, double>::iterator ittt=mm_p.begin();
+#endif
+      map<double, double>::iterator ittt=m_pp.begin();
       double a = ittt->first;
       double d = abs(a-itt2->first);
-      cout << "d = " << d << endl;
       while(1){
         ++ittt;
         a = ittt->first;
         if(d < abs(a-itt2->first)){
           --ittt;
-          cout << "<< find peak " << ittt->first << endl;
           break;
         }
         else{
           d = abs(a-itt2->first);
-          cout << "d = " << d << endl;
         }
       }
       //check real distance
-      if(abs(ittt->first-itt2->first)/itt2->first > 0.1 || abs(d)>0.2){
-        cout << "<< " << (ittt->first-itt2->first)/itt2->first << endl;
+      if(abs(d)>0.2){
+#ifdef DEBUG
         cout << "!! can not find " << v_e[i] << " " << itt2->first << " keV X-Ray" << endl;
+#endif
         continue;
       }
-      //save and pop that peak
+      //save the peak
       m_ppp[v_e[i]].insert(pair<double, double>(ittt->first, ittt->second));
       m_q[v_e[i]].insert(pair<double, double>(ittt->first, itt2->first));
-      mm_p.erase(ittt->first);
+      m_r[v_e[i]].insert(pair<double, double>(itt2->first, ittt->first));
+    }
+    if(m_ppp[v_e[i]].size()==0){
+      m_ppp.erase(v_e[i]);
+    }
+    if(m_q[v_e[i]].size()==0){
+      m_q.erase(v_e[i]);
+    }
+    if(m_r[v_e[i]].size()==0){
+      m_r.erase(v_e[i]);
     }
   }
 
+#ifdef DEBUG
   //cout result
   for(map<string, map<double, double>>::iterator itttt=m_ppp.begin();itttt!=m_ppp.end();++itttt){
-    cout << "<<<< element  " << itttt->first;
+    cout << "before check<<<< element  " << itttt->first;
     for(itt2=itttt->second.begin();itt2!=itttt->second.end();++itt2){
-      cout << "  " << itt2->first << "  " << itt2->second << endl;
+      cout << "  " << itt2->first << "  " << itt2->second;
     }
     cout << endl;
   }
   for(map<string, map<double, double>>::iterator itttt=m_q.begin();itttt!=m_q.end();++itttt){
-    cout << "<<<< element  " << itttt->first;
+    cout << "before <<<< element  " << itttt->first;
     for(itt2=itttt->second.begin();itt2!=itttt->second.end();++itt2){
-      cout << "  toi " << itt2->second << "keV &  mca " << itt2->first;
+      cout << "  mca " << itt2->first << "keV &  toi " << itt2->second;
     }
     cout << endl;
   }
-
-}
-
-//
-void CheckElementShow(map<string, map<double, double>> &m_p, map<string, map<double, double>> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q)
-{
-  //m_p: x-ray data from toi
-  //m_pp: elements show in the mca spectrum, like <20Ca, <peak energy, peak area>, peak energy&area both from mca spectrum
-  //m_ppp: associate peak energy from toi & peak from mca spectrum, mca ==> toi
-  //m_q: elements show in the mca spectrum after checked if more than one peak found, like <20Ca, <peak energy, peak area>, peak energy&area both from mca spectrum
-  //peak energy from toi
-  map<string, map<double, double>>::iterator it1;
-  map<string, map<double, double>>::iterator it2;
-  map<double, double>::iterator itt1;
-  map<double, double>::iterator itt2;
-  for(it1=m_pp.begin();it1!=m_pp.end();++it1){
-    if(m_pp[it1->first].size() == 0){
-      continue;
+  for(map<string, map<double, double>>::iterator itttt=m_r.begin();itttt!=m_r.end();++itttt){
+    cout << "before <<<< element  " << itttt->first;
+    for(itt2=itttt->second.begin();itt2!=itttt->second.end();++itt2){
+      cout << "  toi " << itt2->first << "keV &  mca " << itt2->second;
     }
-    if(m_pp[it1->first].size() == 1){
-      cout << ">>> only 1 peak found in " << it1->first << " go continue" << endl;
-      itt1=m_ppp[it1->first].begin();
-      itt2=m_pp[it1->first].begin();
-      m_q[it1->first].insert(pair<double, double>(m_ppp[it1->first][itt1->first], itt2->second));
-      continue;
+    cout << endl;
+  }
+#endif
+
+  map<double, string> mm_p;
+  for(itt2=m_pp.begin();itt2!=m_pp.end();++itt2){
+#ifdef DEBUG
+    cout << "///......  ana  " << itt2->first << endl;
+#endif
+    mm_p.clear();
+    for(map<string, map<double, double>>::iterator ittt=m_ppp.begin();ittt!=m_ppp.end();++ittt){
+      for(map<double, double>::iterator itttt=ittt->second.begin();itttt!=ittt->second.end();++itttt){
+        if(itt2->first == itttt->first){
+#ifdef DEBUG
+          cout << "///...  " << ittt->first << " " << itt2->first << "  " << itttt->first << "  " << m_q[ittt->first][itt2->first] << endl;
+#endif
+          mm_p.insert(pair<double, string>(abs(m_q[ittt->first][itt2->first]-itttt->first), ittt->first));
+        }
+      }
     }
-    else{//if more than 1 peak, choose the strongest one to make this easier.
-         //if toi and mca show different strongest peak, than what ???
-      for(itt1=m_p[it1->first].begin();itt1!=m_p[it1->first].end();++itt1){
-        cout << ">>><< toi  " << it1->first << "  " << itt1->first << "  " << itt1->second << "  " << endl;
-      }
-      map<double, double> m_m;
-      m_m.clear();
-      for(itt1=m_pp[it1->first].begin();itt1!=m_pp[it1->first].end();++itt1){
-        cout << ">>><< mca  " << it1->first << "  " << itt1->first << "  " << itt1->second << "  " << endl;
-        m_m.insert(pair<double, double>(itt1->second, itt1->first));
-      }
-      map<double, double>::reverse_iterator rit = m_m.rbegin();
-      cout << it1->first << " " << rit->second << " " << rit->first  << endl;
-      m_q[it1->first].insert(pair<double, double>(m_ppp[it1->first][rit->second], rit->first));
-
-      /*
-      m_pp[it1->first].clear();
-      m_pp[it1->first].insert(pair<double, double>(rit->second, rit->first));
-
-      itt1=m_pp[it1->first].begin();
-      cout << ">>>>> mca  " << it1->first << "  " << itt1->first << "  " << itt1->second << "  " << endl;
-      */
+#ifdef DEBUG
+    for(map<double, string>::iterator ittt=mm_p.begin();ittt!=mm_p.end();++ittt){
+      cout << "///...  " << ittt->first << "  " << ittt->second << endl;
+    }
+#endif
+    if(mm_p.size()<2) continue;
+    map<double, string>::iterator ittt=mm_p.begin();
+    while(1){
+      ++ittt;
+      if(ittt==mm_p.end()) break;
+      m_ppp.erase(ittt->second);
+      m_q.erase(ittt->second);
+      m_r.erase(ittt->second);
     }
   }
 
-  for(it2=m_q.begin();it2!=m_q.end();++it2){
-    itt1=m_q[it2->first].begin();
-    cout << ",,, " << it2->first << " " << itt1->first << " " << itt1->second << endl;
+#ifdef DEBUG
+  for(map<string, map<double, double>>::iterator itttt=m_ppp.begin();itttt!=m_ppp.end();++itttt){
+    cout << "after check<<<< element  " << itttt->first;
+    for(itt2=itttt->second.begin();itt2!=itttt->second.end();++itt2){
+      cout << "  " << itt2->first << "  " << itt2->second;
+    }
+    cout << endl;
   }
-
-  return;
+  for(map<string, map<double, double>>::iterator itttt=m_q.begin();itttt!=m_q.end();++itttt){
+    cout << "after <<<< element  " << itttt->first;
+    for(itt2=itttt->second.begin();itt2!=itttt->second.end();++itt2){
+      cout << "  mca " << itt2->first << "keV &  toi " << itt2->second;
+    }
+    cout << endl;
+  }
+  for(map<string, map<double, double>>::iterator itttt=m_r.begin();itttt!=m_r.end();++itttt){
+    cout << "after <<<< element  " << itttt->first;
+    for(itt2=itttt->second.begin();itt2!=itttt->second.end();++itt2){
+      cout << "  toi " << itt2->first << "keV &  mca " << itt2->second;
+    }
+    cout << endl;
+  }
+#endif
 }
 
 //
-void GetElementPercent(map<string, map<double, double>> &m_p, map<string, map<double, double>> &m_pp, map<string, double> &m_q)
+void GetElementPercent(map<string, map<double, double>> &m_p, map<string, map<double, double>> &m_pp, map<string, map<double, double>> m_ppp, map<string, double> &m_q)
 {
   //m_p: x-ray data from toi
-  //m_pp: elements show in the mca spectrum after checked if more than one peak found, like <20Ca, <peak energy, peak area>, peak energy&area both from mca spectrum 
+  //m_pp: elements show in the mca spectrum
+  //m_ppp: associate peak energy from peak from mca spectrum & toi 
   //m_q: element percent result
 
   map<string, map<double, double>>::iterator it;
   double sum = 0.;
   for(it=m_pp.begin();it!=m_pp.end();++it){
     map<double, double>::iterator itt = it->second.begin();
-    sum += (itt->second)/(m_p[it->first][itt->first])*100;
-  }
-  cout << "sum = " << sum << endl;
-  for(it=m_pp.begin();it!=m_pp.end();++it){
-    map<double, double>::iterator itt = it->second.begin();
-    m_q[it->first] = (itt->second)/(m_p[it->first][itt->first])*100/sum;
+    sum += (itt->second)/(m_p[it->first][m_ppp[it->first][itt->first]])*100;
   }
 
-  for(map<string, double>::iterator ittt=m_q.begin();ittt!=m_q.end();++ittt){
-    cout << "!!!??? " << ittt->first << " " << ittt->second << endl;
+  for(it=m_pp.begin();it!=m_pp.end();++it){
+    map<double, double>::iterator itt = it->second.begin();
+    m_q[it->first] = (itt->second)/(m_p[it->first][m_ppp[it->first][itt->first]])*100/sum;
   }
+
 }
