@@ -21,7 +21,7 @@
 #define EFFENERGY1 1.85
 #define EFFENERGY2 15.
 
-#define DEBUG
+//#define DEBUG
 
 using namespace::std;
 
@@ -29,8 +29,8 @@ void ReadXRayData(map<string, map<double, double>> &m_p);
 void PreAnaXRayData_1(map<string, map<double, double>> &m_p);
 void PreAnaXRayData_2(map<string, map<double, double>> &m_p);
 void ReadEffData(double par1[10], double par2[10], double par3[10]);
-void ReadMcaData(char filename[1024], double par[2], vector<double> &v_x, vector<double> &v_y);
-void GetPeakInfo(double par[2], vector<double> &v_x, vector<double> &v_y, map<double, double> &m_p);
+void ReadMcaData(char filename[1024], double par[3], vector<double> &v_x, vector<double> &v_y);
+void GetPeakInfo(double par[3], vector<double> &v_x, vector<double> &v_y, map<double, double> &m_p);
 void CaliDetectorEff(double par1[10], double par2[10], double par3[10], map<double, double> &m_p, map<double, double> &m_pp);
 void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp);
 void GetElementShow(vector<string> &v_e, map<string, map<double, double>> &m_p, map<double, double> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q, map<string, map<double, double>> &m_r);
@@ -58,11 +58,11 @@ void analysis()
   double par2_eff[10];
   double par3_eff[10];
   ReadEffData(par1_eff, par2_eff, par3_eff);
-  double par_cali[2];
+  double par_cali[3];
   vector<double> v_x;
   vector<double> v_y;
   char file_name[1024];
-  sprintf(file_name, "../spectrum/CaTi-10KV-0.02mA.mca");
+  sprintf(file_name, "../spectrum/Sample-10KV-0.02mA.mca");
   ReadMcaData(file_name, par_cali, v_x, v_y);
   map<double, double> m_peak;
   map<double, double> m_peak_dector_eff;
@@ -72,6 +72,9 @@ void analysis()
   CaliAttenEff(m_peak_dector_eff, m_peak_dector_eff_atten_eff);
 
 #ifdef DEBUG
+  for(int i=0;i<3;i++){
+    cout << "cali par " << i << " = " << par_cali[i] << endl;
+  }
   for(it2=m_peak.begin();it2!=m_peak.end();++it2){
     cout << ",,, raw " << it2->first << " ==>  " << it2->second << endl; 
   }
@@ -100,11 +103,9 @@ void analysis()
   map<string, double> m_percent_result;
   GetElementPercent(map_xray_data, m_element_show, m_element_show_mca_toi_associate, m_percent_result);
 
-#ifdef DEBUG
   for(map<string, double>::iterator ittt=m_percent_result.begin();ittt!=m_percent_result.end();++ittt){
     cout << "!!!... " << ittt->first << " " << ittt->second*100 << "%" << endl;
   }
-#endif
 }
 
 
@@ -254,7 +255,7 @@ void ReadEffData(double par1[10], double par2[10], double par3[10])
 }
 
 //
-void ReadMcaData(char filename[1024], double par[2], vector<double> &x, vector<double> &y)
+void ReadMcaData(char filename[1024], double par[3], vector<double> &x, vector<double> &y)
 {
   //filename: mca file used to analysis
   //par: calibration par
@@ -264,7 +265,7 @@ void ReadMcaData(char filename[1024], double par[2], vector<double> &x, vector<d
   fi.open(filename);
   if(!fi){
     cout << "cannot open mca file ..." << endl;
-    return -1;
+    return;
   }
 
   string temp;
@@ -279,7 +280,6 @@ void ReadMcaData(char filename[1024], double par[2], vector<double> &x, vector<d
     getline(fi, temp);
     temp.erase(temp.find_last_not_of("\n\r") + 1);
     if (!fi.good())   break;
-    //cout << temp << endl;
 
     //read cali points
     if(temp.compare(LABLECALISTART) == 0){
@@ -304,13 +304,11 @@ void ReadMcaData(char filename[1024], double par[2], vector<double> &x, vector<d
 
     //read data
     if(temp.compare(LABELDATASTART) == 0){
-      cout << temp << endl;
       double xx = 1;
       while(1){
         getline(fi, temp);
         temp.erase(temp.find_last_not_of("\n\r") + 1);
         if(temp.compare(LABELDATAEND) == 0){
-          //cout << temp << endl;
           break;
         }
         x.push_back(xx);
@@ -320,62 +318,65 @@ void ReadMcaData(char filename[1024], double par[2], vector<double> &x, vector<d
     }
   }
 
-  //
-  //cout << cali_ch.size() << endl;
-  //cout << x.size() << endl;
+#ifdef DEBUG
+  for(int i=0;i<cali_ch.size();i++){
+    cout << "... cali  " << cali_ch[i] << " " << cali_e[i] << endl;
+  }
+#endif
 
   TGraph* gcali = new TGraph();
-  for(int i=0;i<cali_ch.size();i++) {
+  for(int i=0;i<cali_ch.size();i++){
     gcali->SetPoint(i, cali_ch[i], cali_e[i]);
   }
 
-  TCanvas *cc = new TCanvas("cc", "cc", 0, 0, 400, 360);
-  cc->cd();
+  TCanvas *cc_cali = new TCanvas("cc_cali", "cc_cali", 0, 0, 400, 360);
+  cc_cali->cd();
   gcali->GetXaxis()->SetTitle("Channel");
   gcali->GetYaxis()->SetTitle("Energy[keV]");
   gcali->Draw("AP*");
 
-  TF1 *tf1 = new TF1("tf1", "[0]+[1]*x");
-  gcali->Fit("tf1", "Q");
-  //cout << tf1->GetParameter(0) << endl;
-  //cout << tf1->GetParameter(1) << endl;
-  par[0] = tf1->GetParameter(0);
-  par[1] = tf1->GetParameter(1);
+  if(cali_ch.size()==2){
+    gcali->Fit("pol1", "Q");
+    TF1* tff = (TF1*)gcali->GetFunction("pol1");
+    par[0] = tff->GetParameter(0);
+    par[1] = tff->GetParameter(1);
+    par[2] = 0.;
+  }
+  else if(cali_ch.size()>2){
+    gcali->Fit("pol2", "Q");
+    TF1* tff = (TF1*)gcali->GetFunction("pol2");
+    par[0] = tff->GetParameter(0);
+    par[1] = tff->GetParameter(1);
+    par[2] = tff->GetParameter(2);
+  }else{
+    par[0] = 0.;
+    par[1] = 1.;
+    par[2] = 0.;
+  }
 
   fi.close();
-  delete gcali;
-  delete cc;
-  delete tf1; 
 }
 
 //
-void GetPeakInfo(double par[2], vector<double> &x, vector<double> &y, map<double, double> &m_p)
+void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double, double> &m_p)
 {
   //par: calibration par
   //x: channel info
   //y: counts info
   //m_p: peak info from mca spectrum
   //histogram
-  TCanvas *cc = new TCanvas("cc", "cc", 0, 0, 1200, 800);
-  cc->Divide(2, 2);
+  TCanvas *cc = new TCanvas("cc", "cc", 0, 0, 480, 360);
   int bin_number = x.size();
   TH1D* h0 = new TH1D("h0", "raw data", bin_number, x[0], x[bin_number-1]);
-  TH1D* h1 = new TH1D("h1", "calibration data", bin_number, par[0]+par[1]*x[0], par[0]+par[1]*x[bin_number-1]);
+
   for(int i=0;i<bin_number;i++){
     h0->SetBinContent(x[i], y[i]);
-    h1->SetBinContent(x[i], y[i]);
   }
-  cc->cd(1);
   h0->GetXaxis()->SetTitle("Channel");
   h0->GetYaxis()->SetTitle("Count");
   h0->Draw();
-  cc->cd(2);
-  h1->GetXaxis()->SetTitle("Energy[keV]");
-  h1->GetYaxis()->SetTitle("Count");
-  h1->Draw();
 
   //find peak
-  cc->cd(3);
   TSpectrum *spec = new TSpectrum(20);
   int nfound = spec->Search(h0, 1, "", 0.01);
   TH1 *hb = spec->Background(h0, 20, "Compton BackSmoothing13 same");
@@ -386,37 +387,27 @@ void GetPeakInfo(double par[2], vector<double> &x, vector<double> &y, map<double
   xpeaks = spec->GetPositionX();
   for(int i=0;i<nfound;i++){
     double xp = xpeaks[i];
-    if((par[0]+par[1]*xp) < 1.5)  continue;
+    if((par[0]+par[1]*xp+par[2]*xp*xp) < 1.5)  continue;
 
-    h0->Fit(tf_gaus, "", "", 0.97*xp, 1.03*xp);
-    cout << "xp  " << xp << "  " << tf_gaus->GetParameter(1) << endl;
-
+    h0->Fit(tf_gaus, "Q", "", 0.97*xp, 1.03*xp);
     map<double, double> m_single_peak;
     map<double, double>::iterator it;
     for(int j=0.9*xp;j<1.1*xp;j++){
       m_single_peak.insert(pair<double, double>(h0->GetBinCenter(j), h0->GetBinContent(j)));
     }
-    for(it=m_single_peak.begin();it!=m_single_peak.end();++it){
-      cout << it->first << " ==> " << it->second << endl;
-    }
+
     map<double, double> m_find_max_x;
     for(int j=xp-2;j<=xp+2;j++){
       m_find_max_x.insert(pair<double, double>(h0->GetBinContent(j), h0->GetBinCenter(j)));
     }
-    /*
-    for(it=m_find_max_x.begin();it!=m_find_max_x.end();++it){
-      cout << it->first << " ==> " << it->second << endl;
-    }
-    */
+
     map<double, double>::reverse_iterator rit = m_find_max_x.rbegin();
-    cout << " !! " << rit->first << " " << rit->second << endl;
 
     double x_left_stop = 0;
     double x_right_stop = 0;
     //move left
     it = m_single_peak.find(rit->second);
     double y_max = it->second;
-    cout << "y_max  " << y_max << endl;
     while(1){
       --it;
       if(it->second < y_max){
@@ -431,7 +422,6 @@ void GetPeakInfo(double par[2], vector<double> &x, vector<double> &y, map<double
     //move right
     it = m_single_peak.find(rit->second);
     y_max = it->second;
-    cout << "y_max  " << y_max << endl;
     while(1){
       ++it;
       if(it->second < y_max){
@@ -443,11 +433,12 @@ void GetPeakInfo(double par[2], vector<double> &x, vector<double> &y, map<double
         break;
       }
     }
-    cout << "x_left_stop = " << x_left_stop << endl;
-    cout << "x_right_stop = " << x_right_stop << endl;
-
-    double area = h1->Integral(x_left_stop, x_right_stop) - hb->Integral(x_left_stop, x_right_stop);
-    m_p.insert(pair<double, double>(par[0]+par[1]*xp, area));
+    double area = h0->Integral(x_left_stop, x_right_stop) - hb->Integral(x_left_stop, x_right_stop);
+    m_p.insert(pair<double, double>(par[0]+par[1]*xp+par[2]*xp*xp, area));
+#ifdef DEBUG
+    cout << "x_left_stop = " << x_left_stop << " x_right_stop " << x_right_stop << endl;
+    cout << "area = " << area << endl;
+#endif
   }
 }
 
@@ -471,7 +462,6 @@ void CaliDetectorEff(double par1[10], double par2[10], double par3[10], map<doub
         eff += par2[i]*pow(it->first, (double)i);
       }
     }
-    cout << "eff = " << eff << endl;
     m_pp.insert(pair<double, double>(it->first, it->second/eff));
   }
 }
@@ -507,7 +497,6 @@ void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp)
 
   map<double, double>::iterator it;
   for(it=m_p.begin();it!=m_p.end();++it){
-    cout << "atten = " << gr->Eval(it->first) << endl;
     m_pp.insert(pair<double, double>(it->first, it->second/gr->Eval(it->first)));
   }
 }
