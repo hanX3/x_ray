@@ -21,6 +21,11 @@
 #define EFFENERGY1 1.85
 #define EFFENERGY2 15.
 
+//cali data
+#define ENERGYCALIPAR0 0.
+#define ENERGYCALIPAR1 1.
+#define ENERGYCALIPAR2 0.
+
 #define DEBUG
 
 using namespace::std;
@@ -30,6 +35,7 @@ void PreAnaXRayData_1(map<string, map<double, double>> &m_p);
 void PreAnaXRayData_2(map<string, map<double, double>> &m_p);
 void ReadEffData(double par1[10], double par2[10], double par3[10]);
 void ReadMcaData(char filename[1024], double par[3], vector<double> &v_x, vector<double> &v_y);
+void RejectBackground(vector<double> &v_x, vector<double> &v_y);
 void GetPeakInfo(double par[3], vector<double> &v_x, vector<double> &v_y, map<double, double> &m_p);
 void CaliDetectorEff(double par1[10], double par2[10], double par3[10], map<double, double> &m_p, map<double, double> &m_pp);
 void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp);
@@ -58,12 +64,21 @@ void analysis()
   double par2_eff[10];
   double par3_eff[10];
   ReadEffData(par1_eff, par2_eff, par3_eff);
+
+  double par_cali_back[3];
+  vector<double> v_x_back;
+  vector<double> v_y_back;
+  char file_name_back[1024];
+  sprintf(file_name_back, "../data/background-15KV-0.02mA.mca");
+  ReadMcaData(file_name_back, par_cali_back, v_x_back, v_y_back);
+
   double par_cali[3];
   vector<double> v_x;
   vector<double> v_y;
   char file_name[1024];
   sprintf(file_name, "../spectrum/yufo2-15KV-0.02mA.mca");
   ReadMcaData(file_name, par_cali, v_x, v_y);
+  /*
   map<double, double> m_peak;
   map<double, double> m_peak_dector_eff;
   map<double, double> m_peak_dector_eff_atten_eff;
@@ -106,6 +121,7 @@ void analysis()
   for(map<string, double>::iterator ittt=m_percent_result.begin();ittt!=m_percent_result.end();++ittt){
     cout << "!!!... " << ittt->first << " " << ittt->second*100 << "%" << endl;
   }
+  */
 }
 
 
@@ -232,7 +248,7 @@ void ReadEffData(double par1[10], double par2[10], double par3[10])
   //read effdata
   double par_temp1, par_temp2, par_temp3;
   ifstream ifs_eff;
-  ifs_eff.open("../eff.par");
+  ifs_eff.open("../data/eff.dat");
   if(!ifs_eff){
     cout << "cannot open eff.par file !" << endl;
     return;
@@ -257,7 +273,7 @@ void ReadEffData(double par1[10], double par2[10], double par3[10])
 //
 void ReadMcaData(char filename[1024], double par[3], vector<double> &x, vector<double> &y)
 {
-  //filename: mca file used to analysis
+  //filename: mca file
   //par: calibration par
   //x:channel info
   //y:counts info
@@ -349,13 +365,22 @@ void ReadMcaData(char filename[1024], double par[3], vector<double> &x, vector<d
     par[1] = tff->GetParameter(1);
     par[2] = tff->GetParameter(2);
   }else{
-    par[0] = 0.;
-    par[1] = 1.;
-    par[2] = 0.;
+    par[0] = ENERGYCALIPAR0;
+    par[1] = ENERGYCALIPAR1;
+    par[2] = ENERGYCALIPAR2;
   }
 
   fi.close();
+  delete cc_cali;
+  delete gcali;
 }
+
+//
+void RejectBackground(vector<double> &v_x, vector<double> &v_y)
+{
+
+}
+
 
 //
 void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double, double> &m_p)
