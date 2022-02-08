@@ -22,11 +22,18 @@
 #define EFFENERGY2 15.
 
 //cali data
-#define ENERGYCALIPAR0 0.
-#define ENERGYCALIPAR1 1.
-#define ENERGYCALIPAR2 0.
+#define ENERGYCALIPAR0 -0.0257785
+#define ENERGYCALIPAR1 0.0520857
+#define ENERGYCALIPAR2 3.53354e-007
+
+//rejection info
+#define AGXRAYCHANNEL 59
+#define AGXRAYCOUNT 1200
+#define AGXRAYSIGMA 1.88
+#define AGXRAYREJECTIONCHANNELS 10
 
 #define DEBUG
+#define DRAW
 
 using namespace::std;
 
@@ -34,8 +41,8 @@ void ReadXRayData(map<string, map<double, double>> &m_p);
 void PreAnaXRayData_1(map<string, map<double, double>> &m_p);
 void PreAnaXRayData_2(map<string, map<double, double>> &m_p);
 void ReadEffData(double par1[10], double par2[10], double par3[10]);
-void ReadMcaData(char filename[1024], double par[3], vector<double> &v_x, vector<double> &v_y);
-void RejectBackground(vector<double> &v_x, vector<double> &v_y);
+void ReadMcaData(char filename[1024], vector<double> &x, vector<double> &y);
+void RejectBackground(vector<double> &x, vector<double> &y);
 void GetPeakInfo(double par[3], vector<double> &v_x, vector<double> &v_y, map<double, double> &m_p);
 void CaliDetectorEff(double par1[10], double par2[10], double par3[10], map<double, double> &m_p, map<double, double> &m_pp);
 void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp);
@@ -65,19 +72,20 @@ void analysis()
   double par3_eff[10];
   ReadEffData(par1_eff, par2_eff, par3_eff);
 
-  double par_cali_back[3];
-  vector<double> v_x_back;
-  vector<double> v_y_back;
-  char file_name_back[1024];
-  sprintf(file_name_back, "../data/background-15KV-0.02mA.mca");
-  ReadMcaData(file_name_back, par_cali_back, v_x_back, v_y_back);
-
   double par_cali[3];
+  par_cali[0] = ENERGYCALIPAR0;
+  par_cali[1] = ENERGYCALIPAR1;
+  par_cali[2] = ENERGYCALIPAR2;
+#ifdef DEBUG
+  cout << "cali par: " << par_cali[0] << " " << par_cali[1] << " " << par_cali[2] << endl;
+#endif
+
   vector<double> v_x;
   vector<double> v_y;
   char file_name[1024];
   sprintf(file_name, "../spectrum/yufo2-15KV-0.02mA.mca");
-  ReadMcaData(file_name, par_cali, v_x, v_y);
+  ReadMcaData(file_name, v_x, v_y);
+  RejectBackground(v_x, v_y);
   /*
   map<double, double> m_peak;
   map<double, double> m_peak_dector_eff;
@@ -129,7 +137,7 @@ void analysis()
 void ReadXRayData(map<string, map<double, double>> &m_p)
 {
   //m_p: toi x-ray info
-  ifstream file_in("../X-Ray.dat");
+  ifstream file_in("../data/X-Ray.dat");
   if(!file_in){
     std::cout << "can not open X-Ray.dat file" << std::endl;
     return;
@@ -271,10 +279,9 @@ void ReadEffData(double par1[10], double par2[10], double par3[10])
 }
 
 //
-void ReadMcaData(char filename[1024], double par[3], vector<double> &x, vector<double> &y)
+void ReadMcaData(char filename[1024], vector<double> &x, vector<double> &y)
 {
   //filename: mca file
-  //par: calibration par
   //x:channel info
   //y:counts info
   ifstream fi;
@@ -334,51 +341,45 @@ void ReadMcaData(char filename[1024], double par[3], vector<double> &x, vector<d
     }
   }
 
-#ifdef DEBUG
-  for(int i=0;i<cali_ch.size();i++){
-    cout << "... cali  " << cali_ch[i] << " " << cali_e[i] << endl;
-  }
-#endif
-
-  TGraph* gcali = new TGraph();
-  for(int i=0;i<cali_ch.size();i++){
-    gcali->SetPoint(i, cali_ch[i], cali_e[i]);
-  }
-
-  TCanvas *cc_cali = new TCanvas("cc_cali", "cc_cali", 0, 0, 400, 360);
-  cc_cali->cd();
-  gcali->GetXaxis()->SetTitle("Channel");
-  gcali->GetYaxis()->SetTitle("Energy[keV]");
-  gcali->Draw("AP*");
-
-  if(cali_ch.size()==2){
-    gcali->Fit("pol1", "Q");
-    TF1* tff = (TF1*)gcali->GetFunction("pol1");
-    par[0] = tff->GetParameter(0);
-    par[1] = tff->GetParameter(1);
-    par[2] = 0.;
-  }
-  else if(cali_ch.size()>2){
-    gcali->Fit("pol2", "Q");
-    TF1* tff = (TF1*)gcali->GetFunction("pol2");
-    par[0] = tff->GetParameter(0);
-    par[1] = tff->GetParameter(1);
-    par[2] = tff->GetParameter(2);
-  }else{
-    par[0] = ENERGYCALIPAR0;
-    par[1] = ENERGYCALIPAR1;
-    par[2] = ENERGYCALIPAR2;
-  }
-
   fi.close();
-  delete cc_cali;
-  delete gcali;
 }
 
 //
-void RejectBackground(vector<double> &v_x, vector<double> &v_y)
+void RejectBackground(vector<double> &x, vector<double> &y)
 {
+  //v_x: channel info of mca to analysis
+  //v_y: count info of mca to analysis
+  vector<double> v_x_back;
+  vector<double> v_y_back;
+  char file_name_back[1024];
+  sprintf(file_name_back, "../data/background-15KV-0.02mA.mca");
+  ReadMcaData(file_name_back, v_x_back, v_y_back);
 
+
+
+#ifdef DRAW
+  int bin_number = x.size();
+  TCanvas *cc = new TCanvas("cc", "cc", 0, 0, 480, 360);
+  TH1D *h1 = new TH1D("h1", "h_spectrum", bin_number, x[0], x[bin_number-1]);
+  for(int i=0;i<bin_number;i++){
+    h1->SetBinContent(x[i], y[i]);
+  }
+  h1->GetXaxis()->SetTitle("Channel");
+  h1->GetYaxis()->SetTitle("Count");
+  cc->cd();
+  h1->Draw();
+
+  int bin_number_back = v_x_back.size();
+  TCanvas *cc_back = new TCanvas("cc_back", "cc_back", 0, 0, 480, 360);
+  TH1D *h2 = new TH1D("h2", "h_back", bin_number_back, v_x_back[0], v_x_back[bin_number-1]);
+  for(int i=0;i<bin_number_back;i++){
+    h2->SetBinContent(v_x_back[i], v_y_back[i]);
+  }
+  h2->GetXaxis()->SetTitle("Channel");
+  h2->GetYaxis()->SetTitle("Count");
+  cc_back->cd();
+  h2->Draw();
+#endif
 }
 
 
