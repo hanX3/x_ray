@@ -32,8 +32,12 @@
 #define AGXRAYSIGMA 1.88
 #define AGXRAYREJECTIONCHANNELS 10
 
+//atten eff modified info
+#define ATTENEFFENERGYMIN 1.5
+#define ATTENEFFENERGYMAX 15.
+
 #define DEBUG
-#define DRAW
+//#define DRAW
 
 using namespace::std;
 
@@ -42,7 +46,8 @@ void PreAnaXRayData_1(map<string, map<double, double>> &m_p);
 void PreAnaXRayData_2(map<string, map<double, double>> &m_p);
 void ReadEffData(double par1[10], double par2[10], double par3[10]);
 void ReadMcaData(char filename[1024], vector<double> &x, vector<double> &y);
-void RejectBackground(vector<double> &x, vector<double> &y);
+void RejectBackground(vector<double> &x, vector<double> &y, vector<double> &yy);
+void ModifiedAttenEff(double par[3], vector<double> &y, vector<double> &yy);
 void GetPeakInfo(double par[3], vector<double> &v_x, vector<double> &v_y, map<double, double> &m_p);
 void CaliDetectorEff(double par1[10], double par2[10], double par3[10], map<double, double> &m_p, map<double, double> &m_pp);
 void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp);
@@ -83,16 +88,18 @@ void analysis()
   vector<double> v_x;
   vector<double> v_y;
   char file_name[1024];
-  sprintf(file_name, "../spectrum/yufo2-15KV-0.02mA.mca");
+  sprintf(file_name, "../spectrum/stone1_1-15KV-0.02mA.mca");
   ReadMcaData(file_name, v_x, v_y);
-  RejectBackground(v_x, v_y);
-  /*
+  vector<double> v_y_rb;//rejection background
+  RejectBackground(v_x, v_y, v_y_rb);
+  vector<double> v_y_rb_ae;//rejection background & atten eff
+  ModifiedAttenEff(par_cali, v_y_rb, v_y_rb_ae);
   map<double, double> m_peak;
   map<double, double> m_peak_dector_eff;
   map<double, double> m_peak_dector_eff_atten_eff;
-  GetPeakInfo(par_cali, v_x, v_y, m_peak);
+  GetPeakInfo(par_cali, v_x, v_y_rb_ae, m_peak);
   CaliDetectorEff(par1_eff, par2_eff, par3_eff, m_peak, m_peak_dector_eff);
-  CaliAttenEff(m_peak_dector_eff, m_peak_dector_eff_atten_eff);
+  //CaliAttenEff(m_peak_dector_eff, m_peak_dector_eff_atten_eff);
 
 #ifdef DEBUG
   for(int i=0;i<3;i++){
@@ -112,7 +119,7 @@ void analysis()
   map<string, map<double, double>> m_element_show;
   map<string, map<double, double>> m_element_show_mca_toi_associate;
   map<string, map<double, double>> m_element_show_toi_mca_associate;
-  GetElementShow(v_element, map_xray_data, m_peak_dector_eff_atten_eff, m_element_show, m_element_show_mca_toi_associate, m_element_show_toi_mca_associate);
+  GetElementShow(v_element, map_xray_data, m_peak_dector_eff, m_element_show, m_element_show_mca_toi_associate, m_element_show_toi_mca_associate);
 #ifdef DEBUG
   for(it1=m_element_show.begin();it1!=m_element_show.end();++it1){
     cout << "!!!... " << it1->first << " ";
@@ -129,7 +136,6 @@ void analysis()
   for(map<string, double>::iterator ittt=m_percent_result.begin();ittt!=m_percent_result.end();++ittt){
     cout << "!!!... " << ittt->first << " " << ittt->second*100 << "%" << endl;
   }
-  */
 }
 
 
@@ -345,17 +351,30 @@ void ReadMcaData(char filename[1024], vector<double> &x, vector<double> &y)
 }
 
 //
-void RejectBackground(vector<double> &x, vector<double> &y)
+void RejectBackground(vector<double> &x, vector<double> &y, vector<double> &yy)
 {
-  //v_x: channel info of mca to analysis
-  //v_y: count info of mca to analysis
+  //x: channel info of mca to analysis
+  //y: count info of mca to analysis
+  //yy: count info of mca to analysis after bacground rejection
   vector<double> v_x_back;
   vector<double> v_y_back;
   char file_name_back[1024];
   sprintf(file_name_back, "../data/background-15KV-0.02mA.mca");
   ReadMcaData(file_name_back, v_x_back, v_y_back);
 
+  for(int i=0;i<x.size();i++){
+    yy.push_back(y[i]);
+    if(i>=(AGXRAYCHANNEL-AGXRAYREJECTIONCHANNELS) && i<=(AGXRAYCHANNEL+AGXRAYREJECTIONCHANNELS)){
+      yy[i] = y[i] - AGXRAYCOUNT*TMath::Gaus((Double_t)i, AGXRAYCHANNEL, AGXRAYSIGMA);
+    }
+    else{
+      yy[i] = y[i] - v_y_back[i];
+    }
 
+    if(yy[i]<0){
+      yy[i] = 0;
+    }
+  }
 
 #ifdef DRAW
   int bin_number = x.size();
@@ -370,7 +389,7 @@ void RejectBackground(vector<double> &x, vector<double> &y)
   h1->Draw();
 
   int bin_number_back = v_x_back.size();
-  TCanvas *cc_back = new TCanvas("cc_back", "cc_back", 0, 0, 480, 360);
+  TCanvas *cc_back = new TCanvas("cc_back", "cc_back", 500, 0, 480, 360);
   TH1D *h2 = new TH1D("h2", "h_back", bin_number_back, v_x_back[0], v_x_back[bin_number-1]);
   for(int i=0;i<bin_number_back;i++){
     h2->SetBinContent(v_x_back[i], v_y_back[i]);
@@ -379,9 +398,73 @@ void RejectBackground(vector<double> &x, vector<double> &y)
   h2->GetYaxis()->SetTitle("Count");
   cc_back->cd();
   h2->Draw();
+
+  TCanvas *cc3 = new TCanvas("cc3", "cc3", 1000, 0, 480, 360);
+  TH1D *h3 = new TH1D("h3", "h_rejection", bin_number, x[0], x[bin_number-1]);
+  h3->Add(h1, h2, 1, -1);
+  cc3->cd();
+  h3->Draw();
+
+  TCanvas *cc4 = new TCanvas("cc4", "cc4", 0, 400, 480, 360);
+  TH1D *h4 = new TH1D("h4", "h_rejection", bin_number, x[0], x[bin_number-1]);
+  for(int i=0;i<bin_number;i++){
+    h4->SetBinContent(x[i], yy[i]);
+  }
+  cc4->cd();
+  h4->Draw();
 #endif
 }
 
+//
+void ModifiedAttenEff(double par[3], vector<double> &y, vector<double> &yy)
+{
+  //par[3]: cali info
+  //y: peak info from mca spectrum after background rejection
+  //yy: peak info from mca spectrum after background rejection and atten effective modified
+  ifstream fi;
+  fi.open("../data/gamma_attenuation.dat");
+  if(!fi){
+    cout << "cannot open gamma_attenuation_data.txt file !" << endl;
+    return;
+  }
+  vector<double> v_x_ray_e;
+  vector<double> v_x_ray_eff;
+
+  double a, b;
+  while(1){
+    fi >> a >> b;
+    if(!fi.good()) break;
+    v_x_ray_e.push_back(a);
+    v_x_ray_eff.push_back(b);
+  }
+  fi.close();
+
+  int size = v_x_ray_e.size();
+  TGraph *gr = new TGraph(size);
+  for(int i=0;i<size;i++){
+    gr->SetPoint(i, v_x_ray_e[i], v_x_ray_eff[i]);
+  }
+
+  double e = 0.;
+  for(int i=0;i<y.size();i++){
+    yy.push_back(y[i]);
+    e = par[0]+par[1]*i+par[2]*i*i;
+    if(e>1.5 && e<15.){
+      yy[i] = y[i]/gr->Eval(e);
+    }
+  }
+
+#ifdef DRAW
+  int bin_number = y.size();
+  TCanvas *cc_mae = new TCanvas("cc_mae", "cc_mae", 0, 800, 480, 360);
+  TH1D *h_mae = new TH1D("h_mae", "h_rejection_atten_eff", bin_number, par[0], par[0]+par[1]*(bin_number-1)+par[2]*(bin_number-1)*(bin_number-1));
+  for(int i=0;i<bin_number;i++){
+    h_mae->SetBinContent(i, yy[i]);
+  }
+  cc_mae->cd();
+  h_mae->Draw();
+#endif
+}
 
 //
 void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double, double> &m_p)
@@ -391,21 +474,19 @@ void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double
   //y: counts info
   //m_p: peak info from mca spectrum
   //histogram
-  TCanvas *cc = new TCanvas("cc", "cc", 0, 0, 480, 360);
   int bin_number = x.size();
-  TH1D* h0 = new TH1D("h0", "raw data", bin_number, x[0], x[bin_number-1]);
+  TH1D* h0_gpi = new TH1D("h0_gpi", "raw data", bin_number, x[0], x[bin_number-1]);
 
   for(int i=0;i<bin_number;i++){
-    h0->SetBinContent(x[i], y[i]);
+    h0_gpi->SetBinContent(x[i], y[i]);
   }
-  h0->GetXaxis()->SetTitle("Channel");
-  h0->GetYaxis()->SetTitle("Count");
-  h0->Draw();
+  h0_gpi->GetXaxis()->SetTitle("Channel");
+  h0_gpi->GetYaxis()->SetTitle("Count");
 
   //find peak
   TSpectrum *spec = new TSpectrum(20);
-  int nfound = spec->Search(h0, 1, "", 0.01);
-  TH1 *hb = spec->Background(h0, 20, "Compton BackSmoothing13 same");
+  int nfound = spec->Search(h0_gpi, 1, "", 0.01);
+  TH1 *hb = spec->Background(h0_gpi, 20, "Compton BackSmoothing13 same");
 
   TF1 *tf_gaus = new TF1("tf_gaus", "gaus");
 
@@ -415,16 +496,16 @@ void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double
     double xp = xpeaks[i];
     if((par[0]+par[1]*xp+par[2]*xp*xp) < 1.5)  continue;
 
-    h0->Fit(tf_gaus, "Q", "", 0.97*xp, 1.03*xp);
+    h0_gpi->Fit(tf_gaus, "QN0", "", 0.97*xp, 1.03*xp);
     map<double, double> m_single_peak;
     map<double, double>::iterator it;
     for(int j=0.9*xp;j<1.1*xp;j++){
-      m_single_peak.insert(pair<double, double>(h0->GetBinCenter(j), h0->GetBinContent(j)));
+      m_single_peak.insert(pair<double, double>(h0_gpi->GetBinCenter(j), h0_gpi->GetBinContent(j)));
     }
 
     map<double, double> m_find_max_x;
     for(int j=xp-2;j<=xp+2;j++){
-      m_find_max_x.insert(pair<double, double>(h0->GetBinContent(j), h0->GetBinCenter(j)));
+      m_find_max_x.insert(pair<double, double>(h0_gpi->GetBinContent(j), h0_gpi->GetBinCenter(j)));
     }
 
     map<double, double>::reverse_iterator rit = m_find_max_x.rbegin();
@@ -459,13 +540,19 @@ void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double
         break;
       }
     }
-    double area = h0->Integral(x_left_stop, x_right_stop) - hb->Integral(x_left_stop, x_right_stop);
+    double area = h0_gpi->Integral(x_left_stop, x_right_stop) - hb->Integral(x_left_stop, x_right_stop);
     m_p.insert(pair<double, double>(par[0]+par[1]*xp+par[2]*xp*xp, area));
 #ifdef DEBUG
     cout << "x_left_stop = " << x_left_stop << " x_right_stop " << x_right_stop << endl;
     cout << "area = " << area << endl;
 #endif
   }
+
+#ifdef DRAW
+  TCanvas *cc_gpi = new TCanvas("cc_gpi", "cc_gpi", 0, 0, 480, 360);
+  cc_gpi->cd();
+  h0_gpi->Draw();
+#endif
 }
 
 //
@@ -498,7 +585,7 @@ void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp)
   //m_p: peak info from mca spectrum after detector efficiency calibration
   //m_pp: peak info from mca spectrum after detector&atten efficiency calibration
   ifstream fi;
-  fi.open("../gamma_attenuation_data.txt");
+  fi.open("../data/gamma_attenuation.dat");
   if(!fi){
     cout << "cannot open gamma_attenuation_data.txt file !" << endl;
     return;
