@@ -87,8 +87,8 @@ void analysis_dc()
 
   char file_name_1[1024];
   char file_name_2[1024];
-  sprintf(file_name_1, "../spectrum/stone1_1-15KV-0.02mA.mca");
-  sprintf(file_name_2, "../spectrum/stone1_2-15KV-0.02mA.mca");
+  sprintf(file_name_1, "../spectrum/0.4Fe3O4+0.1CaCO3-15KV-0.02mA-2.mca");
+  sprintf(file_name_2, "../spectrum/0.4Fe3O4+0.1CaCO3-15KV-0.02mA-2.mca");
 
   //file 1 ana
   vector<double> v_x_1;
@@ -569,6 +569,10 @@ void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double
     it = m_single_peak.find(rit->second);
     double y_max = it->second;
     while(1){
+       if((it->first-(int)(0.9*xp) < 1.)){
+         x_left_stop = it->first;
+         break;
+       }
       --it;
       if(it->second < y_max){
         y_max = it->second;
@@ -583,6 +587,10 @@ void GetPeakInfo(double par[3], vector<double> &x, vector<double> &y, map<double
     it = m_single_peak.find(rit->second);
     y_max = it->second;
     while(1){
+       if(((int)(1.1*xp)-it->first < 1.)){
+         x_right_stop = it->first;
+         break;
+       }
       ++it;
       if(it->second < y_max){
         y_max = it->second;
