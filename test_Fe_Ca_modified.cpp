@@ -1,6 +1,6 @@
 #define DRAW
 
-void solve_function()
+void test_Fe_Ca_modified()
 {
   ifstream ffi;
   ffi.open("../data/Ca_Fe_modified.dat");

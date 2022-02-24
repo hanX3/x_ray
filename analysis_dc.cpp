@@ -53,6 +53,7 @@ void CaliDetectorEff(double par1[10], double par2[10], double par3[10], map<doub
 void CaliAttenEff(map<double, double> &m_p, map<double, double> &m_pp);
 void GetElementShow(vector<string> &v_e, map<string, map<double, double>> &m_p, map<double, double> &m_pp, map<string, map<double, double>> &m_ppp, map<string, map<double, double>> &m_q, map<string, map<double, double>> &m_r);
 void GetElementPercent(map<string, map<double, double>> &m_p, map<string, map<double, double>> &m_pp, map<string, map<double, double>> m_ppp, map<string, double> &m_q);
+void ModifiedCaFe(map<string, double> &m_p, map<string, double> &m_q);
 
 //
 void analysis_dc()
@@ -189,6 +190,14 @@ void analysis_dc()
   for(map<string, double>::iterator ittt=m_percent_result.begin();ittt!=m_percent_result.end();++ittt){
     cout << "!!!... " << ittt->first << " " << ittt->second*100 << "%" << endl;
   }
+
+  //
+  map<string, double> m_percent_result_Ca_Fe_modified;
+  ModifiedCaFe(m_percent_result, m_percent_result_Ca_Fe_modified);
+  for(map<string, double>::iterator ittt=m_percent_result_Ca_Fe_modified.begin();ittt!=m_percent_result_Ca_Fe_modified.end();++ittt){
+    cout << "!!!... " << ittt->first << " last " << ittt->second*100 << "%" << endl;
+  }
+
 }
 
 
@@ -831,7 +840,6 @@ void GetElementPercent(map<string, map<double, double>> &m_p, map<string, map<do
   //m_p: x-ray data from toi
   //m_pp: elements show in the mca spectrum
   //m_ppp: associate peak energy from peak from mca spectrum & toi 
-  //m_q: element percent result
 
   map<string, map<double, double>>::iterator it;
   double sum = 0.;
@@ -845,4 +853,80 @@ void GetElementPercent(map<string, map<double, double>> &m_p, map<string, map<do
     m_q[it->first] = (itt->second)/(m_p[it->first][m_ppp[it->first][itt->first]])*100/sum;
   }
 
+}
+
+//
+void ModifiedCaFe(map<string, double> &m_p, map<string, double> &m_q)
+{
+  //m_p: element percent result
+  //m_q: element percent result after modified Ca_Fe
+
+  if(m_p.size()!=2){
+    for(map<string, double>::iterator ittt=m_p.begin();ittt!=m_p.end();++ittt){
+      m_q[ittt->first] = ittt->second;
+    }
+    return;
+  }else{
+    if((m_p.find("Ca")==m_p.end()) || (m_p.find("Fe")==m_p.end())){
+      for(map<string, double>::iterator ittt=m_p.begin();ittt!=m_p.end();++ittt){
+        m_q[ittt->first] = ittt->second;
+      }
+      return;
+    }
+    else{
+      double k = m_p["Ca"]/m_p["Fe"];
+
+      ifstream ffi;
+      ffi.open("../data/Ca_Fe_modified.dat");
+
+      vector<double> v_x;
+      vector<double> v_y_Ca;
+      vector<double> v_y_Fe;
+
+      double a, b, c;
+      while(1){
+        ffi >> a >> b >> c;
+        if(!ffi.good()) break;
+        v_x.push_back(a);
+        v_y_Ca.push_back(b);
+        v_y_Fe.push_back(c);
+      }
+      ffi.close();
+
+      int size = v_x.size();
+      TGraph *gr_Ca = new TGraph(size);
+      TGraph *gr_Fe = new TGraph(size);
+      for(int i=0;i<size;i++){
+        gr_Ca->SetPoint(i, v_x[i], v_y_Ca[i]);
+        gr_Fe->SetPoint(i, v_x[i], v_y_Fe[i]);
+      }
+
+      //cout << "aaa = " << v_x[0] << endl;
+      //cout << "bbb = " << v_x[size-1] << endl;
+
+      if(k>=v_x[0] && k<=v_x[size-1]){
+        for(map<string, double>::iterator ittt=m_p.begin();ittt!=m_p.end();++ittt){
+          if(ittt->first.compare("Ca")==0){
+            m_q[ittt->first] = gr_Ca->Eval(k)*ittt->second;
+          }
+          else{
+            m_q[ittt->first] = gr_Fe->Eval(k)*ittt->second;
+          }
+        }
+
+        double a = m_q["Ca"];
+        double b = m_q["Fe"];
+
+        m_q["Ca"] = a/(a+b);
+        m_q["Fe"] = b/(a+b);
+      }
+      else{
+        for(map<string, double>::iterator ittt=m_p.begin();ittt!=m_p.end();++ittt){
+          m_q[ittt->first] = ittt->second;
+        }
+      }
+
+      return;
+    }
+  }
 }
